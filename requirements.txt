@@ -1,4 +1,4 @@
-transformers==4.2.1
+transformers
 scipy
 datasets
 pandas
@@ -7,3 +7,4 @@ prettytable
 gradio
 torch
 setuptools
+wandb
