@@ -291,10 +291,10 @@ class BertForCL(BertPreTrainedModel):
 
         if self.model_args.use_attention_dropout == True:
             self.attention_dropout = AttentionDropout(
-                model=self.bert, 
+                model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.bert, 
                 n_dropout=self.model_args.n_dropout,
-                min_text_length=self.model_args.min_text_length,
-                dynamic_length=self.model_args.dynamic_length,
+                min_tokens=self.model_args.min_tokens,
+                dynamic_dropout=self.model_args.dynamic_dropout,
             )
 
         cl_init(self, config)
@@ -358,10 +358,10 @@ class RobertaForCL(RobertaPreTrainedModel):
 
         if self.model_args.use_attention_dropout == True:
             self.attention_dropout = AttentionDropout(
-                model=self.roberta, 
+                model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.roberta, 
                 n_dropout=self.model_args.n_dropout,
-                min_text_length=self.model_args.min_text_length,
-                dynamic_length=self.model_args.dynamic_length,
+                min_tokens=self.model_args.min_tokens,
+                dynamic_dropout=self.model_args.dynamic_dropout,
             )
 
         cl_init(self, config)
