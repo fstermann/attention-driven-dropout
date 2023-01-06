@@ -6,6 +6,12 @@ from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAtte
 
 
 class AttentionDropout(nn.Module):
+    """Attention Dropout for input ids.
+
+    Note: This is only used in the unsupervised settings, where sentences are used in pairs.
+    In the supervised case, using attention dropout is not necessary, as the the preprocessed
+    examples are used.
+    """
     def __init__(
         self,
         model=None,

@@ -16,6 +16,8 @@ from transformers.file_utils import (
 )
 from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOutputWithPoolingAndCrossAttentions
 
+from attention_dropout import AttentionDropout
+
 class MLPLayer(nn.Module):
     """
     Head for getting sentence representations over RoBERTa/BERT's CLS representation.
@@ -122,6 +124,10 @@ def cl_forward(cls,
     attention_mask = attention_mask.view((-1, attention_mask.size(-1))) # (bs * num_sent len)
     if token_type_ids is not None:
         token_type_ids = token_type_ids.view((-1, token_type_ids.size(-1))) # (bs * num_sent, len)
+
+    # Attention Dropout
+    if cls.model_args.use_attention_dropout:
+        input_ids = cls.attention_dropout(input_ids)
 
     # Get raw embeddings
     outputs = encoder(
@@ -283,6 +289,14 @@ class BertForCL(BertPreTrainedModel):
         if self.model_args.do_mlm:
             self.lm_head = BertLMPredictionHead(config)
 
+        if self.model_args.use_attention_dropout == True:
+            self.attention_dropout = AttentionDropout(
+                model=self.bert, 
+                n_dropout=self.model_args.n_dropout,
+                min_text_length=self.model_args.min_text_length,
+                dynamic_length=self.model_args.dynamic_length,
+            )
+
         cl_init(self, config)
 
     def forward(self,
@@ -341,6 +355,14 @@ class RobertaForCL(RobertaPreTrainedModel):
 
         if self.model_args.do_mlm:
             self.lm_head = RobertaLMHead(config)
+
+        if self.model_args.use_attention_dropout == True:
+            self.attention_dropout = AttentionDropout(
+                model=self.roberta, 
+                n_dropout=self.model_args.n_dropout,
+                min_text_length=self.model_args.min_text_length,
+                dynamic_length=self.model_args.dynamic_length,
+            )
 
         cl_init(self, config)
 
