@@ -131,6 +131,9 @@ dmypy.json
 .DS_Store
 .vscode
 data
+!data/*.sh
 result
 .venv-cu11
 wandb
+scripts
+logs
