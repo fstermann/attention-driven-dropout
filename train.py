@@ -37,6 +37,8 @@ from transformers.file_utils import cached_property, torch_required, is_torch_av
 from simcse.models import RobertaForCL, BertForCL
 from simcse.trainers import CLTrainer
 
+import wandb
+
 logger = logging.getLogger(__name__)
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
@@ -123,6 +125,38 @@ class ModelArguments:
         }
     )
 
+    ## Attention Dropout - Arguments
+    use_attention_dropout: bool = field(
+        default=False,
+        metadata={
+            "help": "Use attention dropout to remove certain words in one of the sentence pairs."
+        }
+    )
+    use_raw_model: bool = field(
+        default=False,
+        metadata={
+            "help": "Use raw BERT/RoBERTa model for attention calculation instead of SimCSE model."
+        }
+    )
+    n_dropout: int = field(
+        default=1,
+        metadata={
+            "help": "Number of words to drop out in each sentence."
+        }
+    )
+    min_tokens: int = field(
+        default=10,
+        metadata={
+            "help": "Minimum text length for dropout. If text length is less than this, do not drop out any words."
+        }
+    )
+    dynamic_dropout: bool = field(
+        default=False,
+        metadata={
+            "help": "Use text length to figure out the number of words to drop. If False, use fixed n_dropout."
+        }
+    )
+
 
 @dataclass
 class DataTrainingArguments:
@@ -174,6 +208,19 @@ class DataTrainingArguments:
         default=0.15, 
         metadata={"help": "Ratio of tokens to mask for MLM (only effective if --do_mlm)"}
     )
+    wandb_run_name: Optional[str] = field(
+        default=None, 
+        metadata={"help": "Wandb run name"}
+    )
+    wandb_project: Optional[str] = field(
+        default=None, 
+        metadata={"help": "Wandb project"}
+    )
+    wandb_tags: Optional[str] = field(
+        default=None, 
+        metadata={"help": "Wandb tags"}
+    )
+    
 
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
@@ -268,6 +315,11 @@ def main():
             "Use --overwrite_output_dir to overcome."
         )
 
+    # Init Weights and Biases run
+    if any([data_args.wandb_run_name, data_args.wandb_project, data_args.wandb_tags]):
+        data_args.wandb_tags = data_args.wandb_tags.split(",") if data_args.wandb_tags else []
+        wandb.init(name=data_args.wandb_run_name, project=data_args.wandb_project, tags=data_args.wandb_tags)
+
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -346,6 +398,8 @@ def main():
             "You are instantiating a new tokenizer from scratch. This is not supported by this script."
             "You can do it from another script, save it, and load it from here, using --tokenizer_name."
         )
+
+    logging.info(f"Using model arguments:\n{model_args}")
 
     if model_args.model_name_or_path:
         if 'roberta' in model_args.model_name_or_path:
