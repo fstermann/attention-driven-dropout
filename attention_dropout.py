@@ -66,25 +66,25 @@ class AttentionDropout(nn.Module):
         self.dynamic_dropout = dynamic_dropout
 
 
-    def forward(self, input_ids):
+    def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         if not self.training:
             return input_ids
+        
         # Use the pre-trained attention model to calculate the attention probabilities
         output: BaseModelOutputWithPoolingAndCrossAttentions = self.model(
             input_ids, attention_mask=input_ids > 0, output_attentions=True,
         )
         # output.attentions.shape: (n_layers, batch_size, num_heads, sequence_length, sequence_length)
 
-        batch_size = len(output.attentions[0])
-        seq_length = len(output.attentions[0][0][0])
-        stacked = torch.stack(output.attentions)
+        attentions = torch.stack(output.attentions)
+        _, batch_size, _, _, seq_length = attentions.shape
 
         n_dropout = seq_length // 10 if self.dynamic_dropout else self.n_dropout
 
         # Replace masked attention with 1, to avoid 0 in min
-        stacked[stacked == 0] = 1
-        sums = torch.sum(stacked, dim=(0, 2, 3)) # Sum over layers, heads and sequence length
-        min_indices = sums.topk(n_dropout, dim=1, largest=False).indices
+        attentions[attentions == 0] = 1
+        attention_sums = torch.sum(attentions, dim=(0, 2, 3)) # Sum over layers, heads and sequence length
+        min_indices = attention_sums.topk(n_dropout, dim=1, largest=False).indices
 
         # Drop min index in every second sentence
         input_ids = input_ids.clone()
