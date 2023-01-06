@@ -10,7 +10,25 @@ from transformers.models.roberta.modeling_roberta import RobertaModel
 class AttentionDropout(nn.Module):
     """Attention Dropout for input ids.
 
-    Note: This is only used in the unsupervised settings, where sentences are used in pairs.
+    This layer is used to drop tokens from the input ids, based on their summed attention.
+
+    Peusdo-code:
+
+    1. Pass input_ids through the specified model to get attention scores
+    2. Sum up the attention scores for each token, each batch (over the layers and heads)
+            - Attention scores are of shape (num_layers, batch_size, num_heads, seq_len, seq_len)
+            - We are summing up over the first, third and fourth dimension
+    3. If dynamic_dropout is True:
+            - Pick top k tokenswith the lowest summed attention scores, 
+            with k depending on the number of input tokens (<10 -> k=1, <20 -> k=2, <30 -> k=3, ...)
+    3. If dynamic_dropout is False:
+            - Pick top 'n_dropout' (1, 2, 3, ...) tokens with the lowest summed attention scores
+    4. Remove the picked tokens from the input_ids
+            - Only if there are at least (>=) 'min_tokens' tokens in the input_ids
+            - Actually the input is altered in a way such that tokens are shifted to the left and padded with 0s
+    5. Return the altered input_ids
+
+    Note: This should only be used in the unsupervised settings, where sentences are used in pairs.
     In the supervised case, using attention dropout is not necessary, as the the preprocessed
     examples are used.
 
