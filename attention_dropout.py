@@ -59,14 +59,13 @@ class AttentionDropout(nn.Module):
 
         batch_size = len(output.attentions[0])
         seq_length = len(output.attentions[0][0][0])
-        stacked = torch.stack(output.attentions).swapaxes(0, 1)
+        stacked = torch.stack(output.attentions)
 
         n_dropout = seq_length // 10 if self.dynamic_dropout else self.n_dropout
 
         # Replace masked attention with 1, to avoid 0 in min
         stacked[stacked == 0] = 1
-        sums = torch.sum(stacked, dim=-2).sum(1).sum(1)
-        # TODO Change to sum(dim=(...)) --> Maybe swapaxes is not needed
+        sums = torch.sum(stacked, dim=(0, 2, 3)) # Sum over layers, heads and sequence length
         min_indices = sums.topk(n_dropout, dim=1, largest=False).indices
 
         # Drop min index in every second sentence
