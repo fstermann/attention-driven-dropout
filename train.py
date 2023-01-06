@@ -399,7 +399,7 @@ def main():
             "You can do it from another script, save it, and load it from here, using --tokenizer_name."
         )
 
-    logging.info(f"Using model arguments:\n{model_args}")
+    logger.info(f"Using model arguments:\n{model_args}")
 
     if model_args.model_name_or_path:
         if 'roberta' in model_args.model_name_or_path:
