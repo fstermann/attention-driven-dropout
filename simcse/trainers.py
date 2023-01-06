@@ -72,7 +72,7 @@ if version.parse(torch.__version__) >= version.parse("1.6"):
 if is_datasets_available():
     import datasets
 
-from transformers.trainer import _model_unwrap
+# from transformers.trainer import _model_unwrap # OUTCOMMENTED -> New transformers version
 from transformers.optimization import Adafactor, AdamW, get_scheduler
 import copy
 # Set path to SentEval
@@ -510,13 +510,15 @@ class CLTrainer(Trainer):
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(self.args, self.state, self.control)
 
-                    self._maybe_log_save_evaluate(tr_loss, model, trial, epoch)
+                    # ADDDED ignore_keys_for_eval=None --> New transformer version
+                    self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval=None)
 
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
 
             self.control = self.callback_handler.on_epoch_end(self.args, self.state, self.control)
-            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch)
+            # ADDDED ignore_keys_for_eval=None --> New transformer version
+            self._maybe_log_save_evaluate(tr_loss, model, trial, epoch, ignore_keys_for_eval=None)
 
             if self.args.tpu_metrics_debug or self.args.debug:
                 if is_torch_tpu_available():
