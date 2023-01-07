@@ -3,7 +3,7 @@ import io, os
 import numpy as np
 import logging
 import argparse
-from prettytable import PrettyTable
+from prettytable import PrettyTable, MARKDOWN
 import torch
 import transformers
 from transformers import AutoModel, AutoTokenizer
@@ -23,6 +23,7 @@ def print_table(task_names, scores):
     tb = PrettyTable()
     tb.field_names = task_names
     tb.add_row(scores)
+    tb.set_style(MARKDOWN)
     print(tb)
 
 def main():
