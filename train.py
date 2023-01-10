@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import math
 import os
@@ -291,18 +293,19 @@ class OurTrainingArguments(TrainingArguments):
         return device
 
 
-def main():
+def main(model_args: ModelArguments | None = None, data_args: DataTrainingArguments | None = None, training_args: OurTrainingArguments | None = None):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, OurTrainingArguments))
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-    else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    if any(args is None for args in [model_args, data_args, training_args]):
+        parser = HfArgumentParser((ModelArguments, DataTrainingArguments, OurTrainingArguments))
+        if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+            # If we pass only one argument to the script and it's the path to a json file,
+            # let's parse it to get our arguments.
+            model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        else:
+            model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     if (
         os.path.exists(training_args.output_dir)
@@ -316,7 +319,8 @@ def main():
         )
 
     # Init Weights and Biases run
-    if any([data_args.wandb_run_name, data_args.wandb_project, data_args.wandb_tags]):
+    use_wandb = any([data_args.wandb_run_name, data_args.wandb_project, data_args.wandb_tags])
+    if use_wandb:
         data_args.wandb_tags = data_args.wandb_tags.split(",") if data_args.wandb_tags else []
         wandb.init(name=data_args.wandb_run_name, project=data_args.wandb_project, tags=data_args.wandb_tags)
 
@@ -629,6 +633,9 @@ def main():
                 for key, value in sorted(results.items()):
                     logger.info(f"  {key} = {value}")
                     writer.write(f"{key} = {value}\n")
+
+    if use_wandb:
+        wandb.finish()
 
     return results
 
