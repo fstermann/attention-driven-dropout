@@ -8,14 +8,16 @@ import os
 import json
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--path", type=str, help="Path of SimCSE checkpoint folder")
-    args = parser.parse_args()
+def main(checkpoint_path: str=None):
+    if not checkpoint_path:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--path", type=str, help="Path of SimCSE checkpoint folder")
+        args = parser.parse_args()
+        checkpoint_path = args.path
 
-    print("SimCSE checkpoint -> Huggingface checkpoint for {}".format(args.path))
+    print("SimCSE checkpoint -> Huggingface checkpoint for {}".format(checkpoint_path))
 
-    state_dict = torch.load(os.path.join(args.path, "pytorch_model.bin"), map_location=torch.device("cpu"))
+    state_dict = torch.load(os.path.join(checkpoint_path, "pytorch_model.bin"), map_location=torch.device("cpu"))
     new_state_dict = {}
     for key, param in state_dict.items():
         # Replace "mlp" to "pooler"
@@ -30,13 +32,13 @@ def main():
 
         new_state_dict[key] = param
 
-    torch.save(new_state_dict, os.path.join(args.path, "pytorch_model.bin"))
+    torch.save(new_state_dict, os.path.join(checkpoint_path, "pytorch_model.bin"))
 
     # Change architectures in config.json
-    config = json.load(open(os.path.join(args.path, "config.json")))
+    config = json.load(open(os.path.join(checkpoint_path, "config.json")))
     for i in range(len(config["architectures"])):
         config["architectures"][i] = config["architectures"][i].replace("ForCL", "Model")
-    json.dump(config, open(os.path.join(args.path, "config.json"), "w"), indent=2)
+    json.dump(config, open(os.path.join(checkpoint_path, "config.json"), "w"), indent=2)
 
 
 if __name__ == "__main__":
