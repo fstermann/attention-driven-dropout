@@ -24,6 +24,28 @@ from senteval.sick import SICKEval
 
 import torch
 
+def _norm(x, eps=1e-8): 
+    xnorm = torch.linalg.norm(x, dim=-1)
+    xnorm = torch.max(xnorm, torch.ones_like(xnorm) * eps)
+    return x / xnorm.unsqueeze(dim=-1)
+
+# from Wang and Isola (with a bit of modification)
+def _lalign(x, y, ok, alpha=2):
+    return ((_norm(x) - _norm(y)).norm(dim=1).pow(alpha) * ok).sum() / ok.sum()
+
+def _lunif(x, t=2):
+    sq_pdist = torch.pdist(_norm(x), p=2).pow(2)
+    return sq_pdist.mul(-t).exp().mean().log()
+
+def log_alignment_and_uniformity(enc1, enc2, gs_scores, dataset):
+    # only consider pairs with gs > 4 (from footnote 3)
+    ok = (torch.Tensor(gs_scores) > 4).int()
+    align = _lalign(torch.cat(enc1), torch.cat(enc2), ok).item() 
+
+    # consider all sentences (from footnote 3)
+    unif = _lunif(torch.cat(enc1 + enc2)).item()
+    logging.info(f'{dataset}: align {align}\t\t uniform {unif}')
+
 class STSEval(object):
     def loadFile(self, fpath):
         self.data = {}
@@ -61,6 +83,8 @@ class STSEval(object):
         results = {}
         all_sys_scores = []
         all_gs_scores = []
+        overall_enc1 = []
+        overall_enc2 = []
         for dataset in self.datasets:
             sys_scores = []
             input1, input2, gs_scores = self.data[dataset]
@@ -82,6 +106,15 @@ class STSEval(object):
                         sys_score = self.similarity(enc1[kk], enc2[kk])
                         sys_scores.append(sys_score)
 
+            overall_enc1.extend(all_enc1)
+            overall_enc2.extend(all_enc2)
+            log_alignment_and_uniformity(
+                enc1=all_enc1, 
+                enc2=all_enc2, 
+                gs_scores=gs_scores,
+                dataset=dataset,
+            )
+
             all_sys_scores.extend(sys_scores)
             all_gs_scores.extend(gs_scores)
             results[dataset] = {'pearson': pearsonr(sys_scores, gs_scores),
@@ -91,31 +124,12 @@ class STSEval(object):
                           (dataset, results[dataset]['pearson'][0],
                            results[dataset]['spearman'][0]))
         
-        ### ADDED ALIGNMENT AND UNIFORMITY METRICS
-        def _norm(x, eps=1e-8): 
-            xnorm = torch.linalg.norm(x, dim=-1)
-            xnorm = torch.max(xnorm, torch.ones_like(xnorm) * eps)
-            return x / xnorm.unsqueeze(dim=-1)
-
-        # from Wang and Isola (with a bit of modification)
-        # only consider pairs with gs > 4 (from footnote 3)
-        def _lalign(x, y, ok, alpha=2):
-            return ((_norm(x) - _norm(y)).norm(dim=1).pow(alpha) * ok).sum() / ok.sum()
-        
-        def _lunif(x, t=2):
-            sq_pdist = torch.pdist(_norm(x), p=2).pow(2)
-            return sq_pdist.mul(-t).exp().mean().log()
-
-        ok = (torch.Tensor(gs_scores) > 4).int()
-        align = _lalign(
-            torch.cat(all_enc1), 
-            torch.cat(all_enc2), 
-            ok).item()
-
-        # consider all sentences (from footnote 3)
-        unif = _lunif(torch.cat(all_enc1 + all_enc2)).item()
-        logging.info(f'align {align}\t\t uniform {unif}')
-        ### ADDED ALIGNMENT AND UNIFORMITY METRICS
+        log_alignment_and_uniformity(
+            enc1=overall_enc1, 
+            enc2=overall_enc2, 
+            gs_scores=all_gs_scores,
+            dataset="ALL",
+        )
 
         weights = [results[dset]['nsamples'] for dset in results.keys()]
         list_prs = np.array([results[dset]['pearson'][0] for
