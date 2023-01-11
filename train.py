@@ -134,6 +134,12 @@ class ModelArguments:
             "help": "Use attention dropout to remove certain words in one of the sentence pairs."
         }
     )
+    use_random_dropout: bool = field(
+        default=False,
+        metadata={
+            "help": "Use random dropout to remove certain words in one of the sentence pairs."
+        }
+    )
     use_raw_model: bool = field(
         default=False,
         metadata={

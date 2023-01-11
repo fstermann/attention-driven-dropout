@@ -16,7 +16,7 @@ from transformers.file_utils import (
 )
 from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOutputWithPoolingAndCrossAttentions
 
-from attention_dropout import AttentionDropout
+from attention_dropout import AttentionDropout, RandomDropout
 
 class MLPLayer(nn.Module):
     """
@@ -126,8 +126,10 @@ def cl_forward(cls,
         token_type_ids = token_type_ids.view((-1, token_type_ids.size(-1))) # (bs * num_sent, len)
 
     # Attention Dropout
-    if cls.model_args.use_attention_dropout:
+    if cls.model_args.use_attention_dropout == True:
         input_ids = cls.attention_dropout(input_ids)
+    elif cls.model_args.use_random_dropout == True:
+        input_ids = cls.random_dropout(input_ids)
 
     # Get raw embeddings
     outputs = encoder(
@@ -296,6 +298,12 @@ class BertForCL(BertPreTrainedModel):
                 min_tokens=self.model_args.min_tokens,
                 dynamic_dropout=self.model_args.dynamic_dropout,
             )
+        elif self.model_args.use_random_dropout == True:
+            self.random_dropout = RandomDropout(
+                n_dropout=self.model_args.n_dropout,
+                min_tokens=self.model_args.min_tokens,
+                dynamic_dropout=self.model_args.dynamic_dropout,
+            )
 
         cl_init(self, config)
 
@@ -362,6 +370,11 @@ class RobertaForCL(RobertaPreTrainedModel):
                 n_dropout=self.model_args.n_dropout,
                 min_tokens=self.model_args.min_tokens,
                 dynamic_dropout=self.model_args.dynamic_dropout,
+            )
+        elif self.model_args.use_random_dropout == True:
+            self.random_dropout = RandomDropout(
+                n_dropout=self.model_args.n_dropout,
+                min_tokens=self.model_args.min_tokens,
             )
 
         cl_init(self, config)
