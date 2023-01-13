@@ -170,7 +170,6 @@ class ModelArguments:
         metadata={
             "help": "Method to use for summation of attention scores. Defaults to 'naive'. Choices: (naive, flow, rollout)"
         },
-        choices=["naive", "flow", "rollout"],
     )
 
 
