@@ -44,7 +44,7 @@ def log_alignment_and_uniformity(enc1, enc2, gs_scores, dataset):
 
     # consider all sentences (from footnote 3)
     unif = _lunif(torch.cat(enc1 + enc2)).item()
-    logging.info(f'{dataset}: align {align}\t\t uniform {unif}')
+    logging.debug(f'{dataset}: align {align}\t\t uniform {unif}')
 
 class STSEval(object):
     def loadFile(self, fpath):
