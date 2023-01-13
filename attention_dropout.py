@@ -7,6 +7,7 @@ from transformers.models.bert.modeling_bert import BertModel
 from transformers.models.roberta.modeling_roberta import RobertaModel
 
 
+
 class AttentionDropout(nn.Module):
     """Attention Dropout for input ids.
 
@@ -39,7 +40,11 @@ class AttentionDropout(nn.Module):
         min_tokens (int, optional): The minimum number of tokens present in a sequence to be 
             able to drop tokens. Defaults to 10.
         dynamic_dropout (bool, optional): If True, the number of tokens to drop is calculated
-            dynamically from the sequence length (seq_length // 10). Defaults to False.
+            dynamically from the sequence length (seq_length // min_tokens). Defaults to False.
+        summation (str, optional): The method to use to sum up the attention scores. Defaults to "naive".
+            - "naive": Sum up the attention scores for each token, each batch (over the layers and heads)
+            - "flow": Use the Attention Flow method to sum up the attention scores
+            - "rollout": Use the Attention Rollout method to sum up the attention scores
 
     """
     def __init__(
@@ -49,6 +54,7 @@ class AttentionDropout(nn.Module):
         n_dropout: int = 1,
         min_tokens: int = 10,
         dynamic_dropout: bool = False,
+        summation_method: str = "naive",
     ):
         super().__init__()
         if isinstance(model, str):
@@ -66,6 +72,17 @@ class AttentionDropout(nn.Module):
         self.dynamic_dropout = dynamic_dropout
 
 
+        SUMMATION_CHOICES = {
+            "naive": self._sum_attention_naive,
+            "flow": self._sum_attention_flow,
+            "rollout": self._sum_attention_rollout,
+        }
+        if summation_method not in SUMMATION_CHOICES:
+            raise ValueError(f"Summation method {summation_method} is not supported.")
+        self.summation_method = summation_method
+        self.summation_func = SUMMATION_CHOICES[summation_method]
+
+
     def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
         if not self.training:
             return input_ids
@@ -79,11 +96,10 @@ class AttentionDropout(nn.Module):
         attentions = torch.stack(output.attentions)
         _, batch_size, _, _, seq_length = attentions.shape
 
-        n_dropout = seq_length // 10 if self.dynamic_dropout else self.n_dropout
+        n_dropout = seq_length // self.min_tokens if self.dynamic_dropout else self.n_dropout
+       
+        attention_sums = self.summation_func(attentions) # Sum over layers, heads and sequence length
 
-        # Replace masked attention with 1, to avoid 0 in min
-        attentions[attentions == 0] = 1
-        attention_sums = torch.sum(attentions, dim=(0, 2, 3)) # Sum over layers, heads and sequence length
         min_indices = attention_sums.topk(n_dropout, dim=1, largest=False).indices
 
         # Drop min index in every second sentence
@@ -94,7 +110,7 @@ class AttentionDropout(nn.Module):
             ind = min_indices[i]
 
             if self.dynamic_dropout:
-                n_dropout = n_tokens // 10
+                n_dropout = n_tokens // self.min_tokens
                 ind = ind[:n_dropout]
 
                 if len(ind) == 0:
@@ -113,6 +129,43 @@ class AttentionDropout(nn.Module):
             input_ids[i] = result.scatter(0, ind, sequence_tokens)
 
         return input_ids.detach()
+
+
+    def _sum_attentions_naive(self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)) -> torch.Tensor:
+        """Compute the summed attention scores for each token in the sequence.
+
+        Args:
+            attentions (torch.Tensor): The attention scores of shape (n_layers, batch_size, num_heads, seq_len, seq_len)
+
+        Returns:
+            torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
+        """
+        attentions[attentions == 0] = 1 # Replace masked attention with 1, to avoid 0 in min
+        return torch.sum(attentions, dim=dim) # Sum over layers, heads and sequence length
+
+
+    def _sum_attentions_flow(self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)) -> torch.Tensor:
+        """Compute the summed attention scores for each token in the sequence with the Attention Flow method.
+
+        Args:
+            attentions (torch.Tensor): The attention scores of shape (n_layers, batch_size, num_heads, seq_len, seq_len)
+
+        Returns:
+            torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
+        """
+        raise NotImplementedError
+
+    def _sum_attentions_rollout(self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)) -> torch.Tensor:
+        """Compute the summed attention scores for each token in the sequence with the Attention Rollout method.
+
+        Args:
+            attentions (torch.Tensor): The attention scores of shape (n_layers, batch_size, num_heads, seq_len, seq_len)
+
+        Returns:
+            torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
+        """
+        raise NotImplementedError
+
 
 class RandomDropout(nn.Module):
 
