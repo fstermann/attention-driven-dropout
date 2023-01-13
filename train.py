@@ -28,6 +28,7 @@ from transformers import (
     default_data_collator,
     set_seed,
     EvalPrediction,
+    EarlyStoppingCallback,
     BertModel,
     BertForPreTraining,
     RobertaModel
@@ -602,6 +603,11 @@ def main(model_args: ModelArguments | None = None, data_args: DataTrainingArgume
         train_dataset=train_dataset if training_args.do_train else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
+        callbacks = [
+            EarlyStoppingCallback(
+                early_stopping_patience=int(1_000_000 / training_args.per_device_train_batch_size / training_args.eval_steps / 2.5)
+                )
+            ]
     )
     trainer.model_args = model_args
 
