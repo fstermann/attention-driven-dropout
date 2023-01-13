@@ -370,6 +370,7 @@ class RobertaForCL(RobertaPreTrainedModel):
                 n_dropout=self.model_args.n_dropout,
                 min_tokens=self.model_args.min_tokens,
                 dynamic_dropout=self.model_args.dynamic_dropout,
+                summation_method=self.model_args.summation_method,
             )
         elif self.model_args.use_random_dropout == True:
             self.random_dropout = RandomDropout(

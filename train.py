@@ -165,6 +165,13 @@ class ModelArguments:
             "help": "Use text length to figure out the number of words to drop. If False, use fixed n_dropout."
         }
     )
+    summation_method: str = field(
+        default="naive",
+        metadata={
+            "help": "Method to use for summation of attention scores. Defaults to 'naive'. Choices: (naive, flow, rollout)"
+        },
+        choices=["naive", "flow", "rollout"],
+    )
 
 
 @dataclass
