@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+from typing import Callable
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -58,24 +61,42 @@ class AttentionDropout(nn.Module):
         summation_method: str = "naive",
     ):
         super().__init__()
-        if isinstance(model, str):
-            if model == "bert-base-uncased":
-                self.model = BertModel.from_pretrained(model)
-            elif model == "roberta-base":
-                self.model = RobertaModel.from_pretrained(model)
-            else:
-                raise ValueError(f"Model {model} is not supported.")
-        else:
-            self.model = model
-
         self.n_dropout = n_dropout
         self.min_tokens = min_tokens
         self.dynamic_dropout = dynamic_dropout
 
-        self.padding_token = self.get_padding_token(model)
-        print("[ADD] padding_token: ", self.padding_token)
+        self.model = self.get_model(model)
+        logging.debug("[ADD] model: ", self.model.base_model_prefix)      
 
-        print("[ADD] summation_method: ", summation_method)
+        self.padding_token = self.get_padding_token(model)
+        logging.debug("[ADD] padding_token: ", self.padding_token)
+
+        self.summation_method = summation_method
+        self.summation_func = self.get_summation_func(summation_method)
+        logging.debug("[ADD] summation_method: ", self.summation_method)
+        logging.debug("[ADD] summation_func: ", self.summation_func)
+
+
+    def get_model(self, model: str | BertModel | RobertaModel) -> BertModel | RobertaModel:
+        if not isinstance(model, str):
+            return model
+        if model == "bert-base-uncased":
+            return BertModel.from_pretrained(model)
+        if model == "roberta-base":
+            return RobertaModel.from_pretrained(model)
+        raise ValueError(f"Model {model} is not supported.")
+
+    
+    def get_padding_token(self, model: BertModel | RobertaModel) -> int:
+        if model.base_model_prefix == "bert":
+            # Using BERT tokenizer
+            return 0
+        if model.base_model_prefix == "roberta":
+            # Using RoBERTa tokenizer
+            return 1
+        raise ValueError(f"Model {model.base_model_prefix} is not supported.")
+
+    def get_summation_func(self, summation_method: str) -> Callable:
         SUMMATION_CHOICES = {
             "naive": self._sum_attentions_naive,
             "flow": self._sum_attentions_flow,
@@ -83,8 +104,8 @@ class AttentionDropout(nn.Module):
         }
         if summation_method not in SUMMATION_CHOICES:
             raise ValueError(f"Summation method {summation_method} is not supported.")
-        self.summation_method = summation_method
-        self.summation_func = SUMMATION_CHOICES[summation_method]
+        
+        return SUMMATION_CHOICES[summation_method]
 
     def forward(
         self, input_ids: torch.Tensor, return_scores: bool = False
@@ -149,15 +170,7 @@ class AttentionDropout(nn.Module):
 
         return input_ids.detach()
 
-    def get_padding_token(self, model) -> int:
-        if model.base_model_prefix == "bert":
-            # We are using BERT tokenizer
-            return 0
-        if model.base_model_prefix == "roberta":
-            # We are using RoBERTa tokenizer
-            return 1
-
-        raise ValueError(f"Model {model.base_model_prefix} is not supported.")
+    
 
     def _sum_attentions_naive(
         self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)
