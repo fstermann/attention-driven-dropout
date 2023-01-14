@@ -10,7 +10,7 @@ This repository contains code for the Attention-driven Dropout paper. It contain
 * [Installation](#Installation)
 * [Usage/Examples](#Usage/Examples)
 * [Results](#Results)
-* [Experiment tracking](#Experiment tracking)
+* [Experiment tracking](#Experiment-tracking)
 * [Acknowledgements](#Acknowledgements)
 
 ## Badges
@@ -154,4 +154,4 @@ We use Simcse code for...:
 
 We follow steps in following repository for rollout-attention:
 
-- [roll-out attention](https://github.com/samiraabnar/attention_flow)
+- [Roll-out attention](https://github.com/samiraabnar/attention_flow)
