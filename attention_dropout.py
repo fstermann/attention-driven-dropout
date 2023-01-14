@@ -6,6 +6,7 @@ from typing import Callable
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
 from transformers.models.bert.modeling_bert import BertModel
 from transformers.models.roberta.modeling_roberta import RobertaModel
@@ -108,15 +109,24 @@ class AttentionDropout(nn.Module):
         return SUMMATION_CHOICES[summation_method]
 
     def forward(
-        self, input_ids: torch.Tensor, return_scores: bool = False
+        self, input_ids: torch.Tensor, return_scores: bool = False, set_length: int = 2
     ) -> torch.Tensor:
         if not self.training:
             return input_ids
 
         # Use the pre-trained attention model to calculate the attention probabilities
-        mask = input_ids != self.padding_token
+        temp_shape = (
+            input_ids.shape[0] // set_length,
+            set_length,
+            *input_ids.shape[1:],
+        )
+        split_input_ids = input_ids.reshape(temp_shape).clone()
+        attention_input_ids = split_input_ids[:, set_length - 1]
+
+        mask = attention_input_ids != self.padding_token
+
         output: BaseModelOutputWithPoolingAndCrossAttentions = self.model(
-            input_ids,
+            attention_input_ids,
             attention_mask=mask,
             output_attentions=True,
         )
@@ -136,8 +146,10 @@ class AttentionDropout(nn.Module):
 
         # Drop min index in every second sentence
         input_ids = input_ids.clone()
-        for i in range(1, batch_size, 2):
-            sequence = input_ids[i].clone()
+        for i in range(batch_size):
+            input_index = set_length * (i + 1) - 1
+
+            sequence = input_ids[input_index].clone()
             n_tokens = len(sequence[sequence != self.padding_token])
             ind = min_indices[i]
 
@@ -157,13 +169,18 @@ class AttentionDropout(nn.Module):
             sequence_tokens = sequence[sequence != self.padding_token]
 
             # Shift tokens to the left
-            ind = torch.arange(0, len(sequence_tokens), device=input_ids.device)
-            result = torch.full(
-                size=sequence.shape,
-                fill_value=self.padding_token,
-                device=input_ids.device,
+            input_ids[input_index] = F.pad(
+                sequence_tokens,
+                pad=(0, seq_length - len(sequence_tokens)),
+                value=self.padding_token,
             )
-            input_ids[i] = result.scatter(0, ind, sequence_tokens)
+            # ind = torch.arange(0, len(sequence_tokens), device=input_ids.device)
+            # result = torch.full(
+            #     size=sequence.shape,
+            #     fill_value=self.padding_token,
+            #     device=input_ids.device,
+            # )
+            # input_ids[i] = result.scatter(0, ind, sequence_tokens)
 
         if return_scores:
             return input_ids.detach(), attention_sums
@@ -182,9 +199,12 @@ class AttentionDropout(nn.Module):
             torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
         """
         # Replace masked attention with 1, to avoid 0 in min
-        attentions[attentions == self.padding_token] = 1
+        # attentions[attentions == self.padding_token] = 1
         # Sum over layers, heads and sequence length
-        return torch.sum(attentions, dim=dim)
+        output = torch.sum(attentions, dim=dim)
+        mask = attentions[0, :, 1, 1] == 0
+        output[mask] = float("inf")  # TODO: Is there a better way?
+        return output
 
     def _sum_attentions_flow(
         self, attentions: torch.Tensor, dim: tuple[int, ...] = (1, 2)
@@ -223,8 +243,8 @@ class AttentionDropout(nn.Module):
         # output = rollout_attentions[:,-1,:,:]
         # Need to replace masked attentions with inf, to be excluded from min
         # -> Take the first layer, first head, for each batch element
-        mask = attentions[0, :, 1, 1] != self.padding_token
-        output[~mask] = float("inf")  # TODO: Is there a better way?
+        mask = attentions[0, :, 1, 1] == 0
+        output[mask] = float("inf")  # TODO: Is there a better way?
         return output
 
 
