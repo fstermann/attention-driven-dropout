@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
 from transformers.models.bert.modeling_bert import BertModel
 from transformers.models.roberta.modeling_roberta import RobertaModel
 
@@ -109,32 +108,35 @@ class AttentionDropout(nn.Module):
         return SUMMATION_CHOICES[summation_method]
 
     def forward(
-        self, input_ids: torch.Tensor, return_scores: bool = False, set_length: int = 2
+        self, input_ids: torch.Tensor, return_scores: bool = False, num_sent: int = 2
     ) -> torch.Tensor:
+        """Forward pass.
+
+        Args:
+            input_ids (torch.Tensor): The input ids. Shape: (batch_size * num_sent, seq_length)
+            return_scores (bool, optional): If True, the summed attention scores are returned.
+                Defaults to False.
+            num_sent (int, optional): The number of sentences per input pair. Defaults to 2.
+
+        Returns:
+            torch.Tensor: The input ids with dropped tokens. Shape: (batch_size * num_sent, seq_length)
+        """
         if not self.training:
             return input_ids
 
         # Use the pre-trained attention model to calculate the attention probabilities
-        temp_shape = (
-            input_ids.shape[0] // set_length,
-            set_length,
-            *input_ids.shape[1:],
-        )
-        split_input_ids = input_ids.reshape(temp_shape).clone()
-        attention_input_ids = split_input_ids[:, set_length - 1]
-
+        attention_input_ids = self.get_last_of_input_ids(input_ids, num_sent=num_sent)
         mask = attention_input_ids != self.padding_token
 
-        output: BaseModelOutputWithPoolingAndCrossAttentions = self.model(
-            attention_input_ids,
-            attention_mask=mask,
-            output_attentions=True,
+        output = self.model(
+            attention_input_ids, attention_mask=mask, output_attentions=True
         )
         # output.attentions.shape: (n_layers, batch_size, num_heads, sequence_length, sequence_length)
 
         attentions = torch.stack(output.attentions)
         _, batch_size, _, _, seq_length = attentions.shape
 
+        # Determine dropout rate
         n_dropout = (
             seq_length // self.min_tokens if self.dynamic_dropout else self.n_dropout
         )
@@ -147,9 +149,9 @@ class AttentionDropout(nn.Module):
         # Drop min index in every second sentence
         input_ids = input_ids.clone()
         for i in range(batch_size):
-            input_index = set_length * (i + 1) - 1
-
+            input_index = num_sent * (i + 1) - 1
             sequence = input_ids[input_index].clone()
+
             n_tokens = len(sequence[sequence != self.padding_token])
             ind = min_indices[i]
 
@@ -165,7 +167,7 @@ class AttentionDropout(nn.Module):
                     continue
 
             sequence[ind] = self.padding_token
-            # Without padding tokens
+            # Select tokens without padding tokens
             sequence_tokens = sequence[sequence != self.padding_token]
 
             # Shift tokens to the left
@@ -174,18 +176,36 @@ class AttentionDropout(nn.Module):
                 pad=(0, seq_length - len(sequence_tokens)),
                 value=self.padding_token,
             )
-            # ind = torch.arange(0, len(sequence_tokens), device=input_ids.device)
-            # result = torch.full(
-            #     size=sequence.shape,
-            #     fill_value=self.padding_token,
-            #     device=input_ids.device,
-            # )
-            # input_ids[i] = result.scatter(0, ind, sequence_tokens)
 
         if return_scores:
             return input_ids.detach(), attention_sums
-
         return input_ids.detach()
+
+    def get_last_of_input_ids(
+        input_ids: torch.Tensor, num_sent: int = 2
+    ) -> torch.Tensor:
+        """Get the last sentence for each input pair.
+
+        The input_ids x_ij look like this:
+            [x(1,1), x(1,2), ..., x(1,num_sent), x(2,1), x(2,2), ..., x(2,num_sent), ...]
+        The output should look like this:
+            [x(1,num_sent), x(2,num_sent), ...]
+
+        Args:
+            input_ids (torch.Tensor): The input ids. Shape: (batch_size * num_sent, seq_length)
+            num_sent (int, optional): The number of sentences per input pair. Defaults to 2.
+
+        Returns:
+            torch.Tensor: The set of input ids for the last sentence in each input pair.
+                Shape: (batch_size // num_sent, seq_length)
+        """
+        split_shape = (
+            input_ids.shape[0] // num_sent,
+            num_sent,
+            *input_ids.shape[1:],
+        )
+        split_input_ids = input_ids.reshape(split_shape).clone()
+        return split_input_ids[:, num_sent - 1]
 
     def _sum_attentions_naive(
         self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)
@@ -198,29 +218,18 @@ class AttentionDropout(nn.Module):
         Returns:
             torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
         """
-        # Replace masked attention with 1, to avoid 0 in min
-        # attentions[attentions == self.padding_token] = 1
-        # Sum over layers, heads and sequence length
         output = torch.sum(attentions, dim=dim)
+
+        # Replace masked attentions with Inf, to exclude them from the min
         mask = attentions[0, :, 1, 1] == 0
-        output[mask] = float("inf")  # TODO: Is there a better way?
+        output[mask] = float("inf")
         return output
 
-    def _sum_attentions_flow(
-        self, attentions: torch.Tensor, dim: tuple[int, ...] = (1, 2)
-    ) -> torch.Tensor:
-        """Compute the summed attention scores for each token in the sequence with the Attention Flow method.
-
-        Args:
-            attentions (torch.Tensor): The attention scores of shape (n_layers, batch_size, num_heads, seq_len, seq_len)
-
-        Returns:
-            torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
-        """
-        raise NotImplementedError
-
     def _sum_attentions_rollout(
-        self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2)
+        self,
+        attentions: torch.Tensor,
+        dim: tuple[int, ...] = (0, 2),
+        take_last_layer: bool = False,
     ) -> torch.Tensor:
         """Compute the summed attention scores for each token in the sequence with the Attention Rollout method.
 
@@ -235,16 +244,14 @@ class AttentionDropout(nn.Module):
             residual_attentions, add_residual=False
         )
 
-        # rollout_attentions  shape (n_layers, batch_size, seq_len, seq_len)
-        # output =  rollout_attentions.sum(dim=dim)
-        # output = rollout_attentions[-1].sum(dim=dim) # Take last layer
-        last_layer = rollout_attentions[-1]
-        output = last_layer.sum(dim=((1)))  # Take last
-        # output = rollout_attentions[:,-1,:,:]
-        # Need to replace masked attentions with inf, to be excluded from min
-        # -> Take the first layer, first head, for each batch element
+        if take_last_layer:
+            rollout_attentions = rollout_attentions[-1].unsqueeze(0)
+
+        output = rollout_attentions.sum(dim == dim)
+
+        # Replace masked attentions with Inf, to exclude them from the min
         mask = attentions[0, :, 1, 1] == 0
-        output[mask] = float("inf")  # TODO: Is there a better way?
+        output[mask] = float("inf")
         return output
 
 
@@ -308,7 +315,9 @@ class RandomDropout(nn.Module):
         raise ValueError(f"Unkown padding token for input_ids: {input_ids[0][0]}")
 
 
-## ATTENTION FLOW/ROLLOUT FUNCTIONS
+# ==========================================
+# ==== ATTENTION FLOW/ROLLOUT FUNCTIONS ====
+# ==========================================
 
 
 def get_residual_attentions(raw_attentions: torch.Tensor, head_dim: int = 2):
