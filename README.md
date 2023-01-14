@@ -16,7 +16,7 @@ This repository contains code for the Attention-driven Dropout paper. It contain
 ## Badges
 
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/git/git-scm.com/blob/main/MIT-LICENSE.txt)
-[![ADD](https://img.shields.io/badge/ADD-yellowgreen)]
+[![ADD](https://img.shields.io/badge/proect-ADD-yellowgreen)]
 
 
 ### Dependency
