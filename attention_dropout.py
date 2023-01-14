@@ -66,18 +66,19 @@ class AttentionDropout(nn.Module):
         self.dynamic_dropout = dynamic_dropout
 
         self.model = self.get_model(model)
-        logging.debug("[ADD] model: ", self.model.base_model_prefix)      
+        logging.debug(f"[ADD] model: {self.model.base_model_prefix}")
 
         self.padding_token = self.get_padding_token(model)
-        logging.debug("[ADD] padding_token: ", self.padding_token)
+        logging.debug(f"[ADD] padding_token: {self.padding_token}")
 
         self.summation_method = summation_method
         self.summation_func = self.get_summation_func(summation_method)
-        logging.debug("[ADD] summation_method: ", self.summation_method)
-        logging.debug("[ADD] summation_func: ", self.summation_func)
+        logging.debug(f"[ADD] summation_method: {self.summation_method}")
+        logging.debug(f"[ADD] summation_func: {self.summation_func}")
 
-
-    def get_model(self, model: str | BertModel | RobertaModel) -> BertModel | RobertaModel:
+    def get_model(
+        self, model: str | BertModel | RobertaModel
+    ) -> BertModel | RobertaModel:
         if not isinstance(model, str):
             return model
         if model == "bert-base-uncased":
@@ -86,7 +87,6 @@ class AttentionDropout(nn.Module):
             return RobertaModel.from_pretrained(model)
         raise ValueError(f"Model {model} is not supported.")
 
-    
     def get_padding_token(self, model: BertModel | RobertaModel) -> int:
         if model.base_model_prefix == "bert":
             # Using BERT tokenizer
@@ -104,7 +104,7 @@ class AttentionDropout(nn.Module):
         }
         if summation_method not in SUMMATION_CHOICES:
             raise ValueError(f"Summation method {summation_method} is not supported.")
-        
+
         return SUMMATION_CHOICES[summation_method]
 
     def forward(
@@ -129,9 +129,8 @@ class AttentionDropout(nn.Module):
             seq_length // self.min_tokens if self.dynamic_dropout else self.n_dropout
         )
 
-        attention_sums = self.summation_func(
-            attentions
-        )  # Sum over layers, heads and sequence length
+        # Sum over layers, heads and sequence length
+        attention_sums = self.summation_func(attentions)
 
         min_indices = attention_sums.topk(n_dropout, dim=1, largest=False).indices
 
@@ -154,14 +153,15 @@ class AttentionDropout(nn.Module):
                     continue
 
             sequence[ind] = self.padding_token
-            sequence_tokens = sequence[
-                sequence != self.padding_token
-            ]  # Without padding tokens
+            # Without padding tokens
+            sequence_tokens = sequence[sequence != self.padding_token]
 
             # Shift tokens to the left
             ind = torch.arange(0, len(sequence_tokens), device=input_ids.device)
             result = torch.full(
-                sequence.shape, self.padding_token, device=input_ids.device
+                size=sequence.shape,
+                fill_value=self.padding_token,
+                device=input_ids.device,
             )
             input_ids[i] = result.scatter(0, ind, sequence_tokens)
 
@@ -169,8 +169,6 @@ class AttentionDropout(nn.Module):
             return input_ids.detach(), attention_sums
 
         return input_ids.detach()
-
-    
 
     def _sum_attentions_naive(
         self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)
@@ -183,12 +181,10 @@ class AttentionDropout(nn.Module):
         Returns:
             torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
         """
-        attentions[
-            attentions == self.padding_token
-        ] = 1  # Replace masked attention with 1, to avoid 0 in min
-        return torch.sum(
-            attentions, dim=dim
-        )  # Sum over layers, heads and sequence length
+        # Replace masked attention with 1, to avoid 0 in min
+        attentions[attentions == self.padding_token] = 1
+        # Sum over layers, heads and sequence length
+        return torch.sum(attentions, dim=dim)
 
     def _sum_attentions_flow(
         self, attentions: torch.Tensor, dim: tuple[int, ...] = (1, 2)
@@ -307,9 +303,6 @@ def get_residual_attentions(raw_attentions: torch.Tensor, head_dim: int = 2):
     res_att_mat = res_att_mat / res_att_mat.sum(axis=-1)[..., None]
 
     return res_att_mat
-
-
-# joint_attentions = compute_joint_attention(res_att_mat, add_residual=False)
 
 
 def get_adjmat(mat, input_tokens):
