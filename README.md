@@ -1,18 +1,38 @@
-# Attention Dropout
+![Attention-driven Dropout](figures/AttentionDropout-Model.png)
 
-This repository contains code for the Attention Dropout paper.
+#
+
+This repository contains code for the Attention-driven Dropout paper. It contains the example codes for different task descriptions.
 
 
-![Attention Dropout](figures/AttentionDropout-Model.png)
+## Table of contents
+* [Badges](#general-information)
+* [Installation](#Installation)
+* [Usage/Examples](#Usage/Examples)
+* [Results](#Results)
+* [Experiment tracking](#Experiment-tracking)
+* [Acknowledgements](#Acknowledgements)
 
-# Installation
+## Badges
+
+[![MIT License](https://img.shields.io/apm/l/atomic-design-ui.svg?)](https://github.com/tterb/atomic-design-ui/blob/master/LICENSEs)
+[![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](https://opensource.org/licenses/)
+[![AGPL License](https://img.shields.io/badge/license-AGPL-blue.svg)](http://www.gnu.org/licenses/agpl-3.0)
+
+### Dependency
+
+![transformer](https://img.shields.io/badge/Transformer-4.25.1-brightgreen)
+![torch](https://img.shields.io/badge/Torch-1.13.1-brightgreen)
+
+## Installation
 
 ```bash
 pip install -r requirements.txt
 pip install -e ./SentEval
 ```
+## Usage/Examples
 
-## Download datasets
+### Download datasets
 
 Training Dataset
 ```bash
@@ -28,7 +48,7 @@ sh download_dataset.sh
 cd ../../../
 ```
 
-# Training
+### Training
 
 Training our BERT model with settings from the paper
 
@@ -57,7 +77,7 @@ python train.py \
     --dynamic_dropout
 ```
 
-# Evaluation
+### Evaluation
 
 Convert the SimCSE model to huggingface format
 ```bash
@@ -76,7 +96,7 @@ python evaluation.py --pooler cls_before_pooler --mode test --task_set full \
     --model_name_or_path ./result/<your-model-name>
 ```
 
-# Results
+## Results
 
 We used the following hyperparameters for training our models.
 
@@ -86,14 +106,14 @@ We used the following hyperparameters for training our models.
 | Learning rate (base) |    1e-05    |     7e-06      |
 
 
-## STS-Tasks
+### STS-Tasks
 
 |                                   |   STS12   | STS13 | STS14 |   STS15   |   STS16   |   STS-B   | SICK-R |   Avg.    |
 | :-------------------------------- | :-------: | :---: | :---: | :-------: | :-------: | :-------: | :----: | :-------: |
 | Dynamic Attention Dropout BERT    | **71.04** | 82.29 | 74.37 | **82.65** | **78.86** | **78.20** | 69.61  | **76.72** |
 | Dynamic Attention Dropout RoBERTa |   65.20   | 80.30 | 71.73 |   81.35   |   80.40   |   79.46   | 67.56  |   75.14   |
 
-## Transfer-Tasks
+### Transfer-Tasks
 |                                   |  MR   |  CR   | SUBJ  | MPQA  | SST2  | TREC  | MRPC  | Avg.  |
 | :-------------------------------- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | Dynamic Attention Dropout BERT    | 80.62 | 85.96 | 94.56 | 88.95 | 84.95 | 88.00 | 74.14 | 85.31 |
@@ -102,7 +122,7 @@ We used the following hyperparameters for training our models.
 | - w/ MLM                          | 83.99 | 88.56 | 94.68 | 87.35 | 89.79 | 88.00 | 77.10 | 87.07 |
 
 
-## Alignment and Uniformity
+### Alignment and Uniformity
 
 Alignment and Uniformity are measured for the STS-Benchmark task on the whole dataset.
 
@@ -114,7 +134,7 @@ Alignment and Uniformity are measured for the STS-Benchmark task on the whole da
 
 
 
-# Experiment tracking
+## Experiment tracking
 
 We are using [Weights & Biases](https://www.wandb.com/) to track experiments.
 
@@ -125,3 +145,13 @@ You can customize your runs by passing these arguments to the train script
 --wandb_project=<your-project-name> \
 --wandb_tags="ado,bert,<additional tags>" \
 ```
+
+## Acknowledgements
+
+We use Simcse code for...:
+
+- [Simcse](https://github.com/princeton-nlp/SimCSE)
+
+We follow steps in following repository for rollout-attention:
+
+- [Roll-out attention](https://github.com/samiraabnar/attention_flow)
