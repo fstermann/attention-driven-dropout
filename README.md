@@ -1,28 +1,37 @@
+# Attention-Driven Dropout
+
+[![MIT license](https://img.shields.io/badge/License-MIT-20B2AA.svg)](https://github.com/git/git-scm.com/blob/main/MIT-LICENSE.txt)
+[![transformer](https://img.shields.io/badge/transformers-4.25.1-008000)](https://github.com/huggingface/transformers)
+[![torch](https://img.shields.io/badge/pyTorch-1.13.1-008000)](https://github.com/pytorch/pytorch)
+[![SimCSE](https://img.shields.io/badge/Princeton_NLP-SimCSE-ADFF2F)](https://github.com/princeton-nlp/SimCSE)
+
 ![Attention-driven Dropout](figures/AttentionDropout-Model.png)
 
 #
 
-This repository contains code for the Attention-driven Dropout paper. It contains the example codes for different task descriptions.
+This repository contains code for the Attention-Driven Dropout paper. 
+
+Since the ADD layer is used in combination with [SimCSE](https://github.com/princeton-nlp/SimCSE), we are using parts of the SimCSE codebase.
+Unique contributions are contained in [attention_dropout.py](attention_dropout.py), as well as [simcse/models.py](simcse/models.py) and [train.py](train.py) which are marked by 
+
+```python
+# ====================================
+# ===== Attention-Driven Dropout =====
+# ====================================
+or 
+# ADD
+``` 
+
+We added the alignment and uniformity metric calculation in [SentEval/senteval/sts.py](SentEval/senteval/sts.py) as well as part of the evaluation.
 
 
 ## Table of contents
-* [Badges](#general-information)
 * [Installation](#Installation)
 * [Usage/Examples](#Usage/Examples)
 * [Results](#Results)
 * [Experiment tracking](#Experiment-tracking)
 * [Acknowledgements](#Acknowledgements)
 
-## Badges
-
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/git/git-scm.com/blob/main/MIT-LICENSE.txt)
-![ADD](https://img.shields.io/badge/project-ADD-yellowgreen)
-
-
-### Dependency
-
-![transformer](https://img.shields.io/badge/Transformer-4.25.1-brightgreen)
-![torch](https://img.shields.io/badge/Torch-1.13.1-brightgreen)
 
 ## Installation
 
@@ -148,10 +157,10 @@ You can customize your runs by passing these arguments to the train script
 
 ## Acknowledgements
 
-We use Simcse code for...:
+We are using SimCSE's training procedure for our experiments.
 
-- [Simcse](https://github.com/princeton-nlp/SimCSE)
+- [SimCSE](https://github.com/princeton-nlp/SimCSE)
 
-We follow steps in following repository for rollout-attention:
+We follow the steps in the following repository for calculating the rollout attentions:
 
-- [Roll-out attention](https://github.com/samiraabnar/attention_flow)
+- [Rollout attention](https://github.com/samiraabnar/attention_flow)
