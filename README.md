@@ -21,8 +21,8 @@ This repository contains code for the Attention-driven Dropout paper. It contain
 
 ### Dependency
 
-![pytorch_lightning](https://img.shields.io/badge/Pytorch_lightning-1.5.10-brightgreen)
-![torch](https://img.shields.io/badge/Torch-1.10.1-brightgreen)
+![transformer](https://img.shields.io/badge/Transformer-4.25.1-brightgreen)
+![torch](https://img.shields.io/badge/Torch-1.13.1-brightgreen)
 
 ## Installation
 
