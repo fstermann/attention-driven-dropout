@@ -16,7 +16,11 @@ from transformers.file_utils import (
 )
 from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOutputWithPoolingAndCrossAttentions
 
+# ====================================
+# ===== Attention-Driven Dropout =====
+# ====================================
 from attention_dropout import AttentionDropout, RandomDropout
+
 
 class MLPLayer(nn.Module):
     """
@@ -125,7 +129,9 @@ def cl_forward(cls,
     if token_type_ids is not None:
         token_type_ids = token_type_ids.view((-1, token_type_ids.size(-1))) # (bs * num_sent, len)
 
-    # Attention Dropout
+    # ====================================
+    # ===== Attention-Driven Dropout =====
+    # ====================================
     if cls.model_args.use_attention_dropout == True:
         input_ids = cls.attention_dropout(input_ids)
     elif cls.model_args.use_random_dropout == True:
@@ -171,19 +177,8 @@ def cl_forward(cls,
     # Separate representation
     z1, z2 = pooler_output[:,0], pooler_output[:,1]
 
-    # Hard negative
-    if num_sent == 3:
-        z3 = pooler_output[:, 2]
-
     # Gather all embeddings if using distributed training
     if dist.is_initialized() and cls.training:
-        # Gather hard negative
-        if num_sent >= 3:
-            z3_list = [torch.zeros_like(z3) for _ in range(dist.get_world_size())]
-            dist.all_gather(tensor_list=z3_list, tensor=z3.contiguous())
-            z3_list[dist.get_rank()] = z3
-            z3 = torch.cat(z3_list, 0)
-
         # Dummy vectors for allgather
         z1_list = [torch.zeros_like(z1) for _ in range(dist.get_world_size())]
         z2_list = [torch.zeros_like(z2) for _ in range(dist.get_world_size())]
@@ -200,22 +195,9 @@ def cl_forward(cls,
         z2 = torch.cat(z2_list, 0)
 
     cos_sim = cls.sim(z1.unsqueeze(1), z2.unsqueeze(0))
-    # Hard negative
-    if num_sent >= 3:
-        z1_z3_cos = cls.sim(z1.unsqueeze(1), z3.unsqueeze(0))
-        cos_sim = torch.cat([cos_sim, z1_z3_cos], 1)
 
     labels = torch.arange(cos_sim.size(0)).long().to(cls.device)
     loss_fct = nn.CrossEntropyLoss()
-
-    # Calculate loss with hard negatives
-    if num_sent == 3:
-        # Note that weights are actually logits of weights
-        z3_weight = cls.model_args.hard_negative_weight
-        weights = torch.tensor(
-            [[0.0] * (cos_sim.size(-1) - z1_z3_cos.size(-1)) + [0.0] * i + [z3_weight] + [0.0] * (z1_z3_cos.size(-1) - i - 1) for i in range(z1_z3_cos.size(-1))]
-        ).to(cls.device)
-        cos_sim = cos_sim + weights
 
     loss = loss_fct(cos_sim, labels)
 
@@ -291,6 +273,9 @@ class BertForCL(BertPreTrainedModel):
         if self.model_args.do_mlm:
             self.lm_head = BertLMPredictionHead(config)
 
+        # ====================================
+        # ===== Attention-Driven Dropout =====
+        # ====================================
         if self.model_args.use_attention_dropout == True:
             self.attention_dropout = AttentionDropout(
                 model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.bert, 
@@ -365,6 +350,9 @@ class RobertaForCL(RobertaPreTrainedModel):
         if self.model_args.do_mlm:
             self.lm_head = RobertaLMHead(config)
 
+        # ====================================
+        # ===== Attention-Driven Dropout =====
+        # ====================================
         if self.model_args.use_attention_dropout == True:
             self.attention_dropout = AttentionDropout(
                 model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.roberta, 

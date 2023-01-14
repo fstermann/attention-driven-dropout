@@ -128,7 +128,9 @@ class ModelArguments:
         }
     )
 
-    ## Attention Dropout - Arguments
+    # ====================================
+    # ===== Attention-Driven Dropout =====
+    # ====================================
     use_attention_dropout: bool = field(
         default=False,
         metadata={

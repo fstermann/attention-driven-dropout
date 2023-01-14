@@ -10,7 +10,7 @@ STS-{2012,2013,2014,2015,2016} (unsupervised) and
 STS-benchmark (supervised) tasks
 '''
 
-from __future__ import absolute_import, division, unicode_literals
+from __future__ import absolute_import, annotations, division, unicode_literals
 
 import os
 import io
@@ -24,27 +24,35 @@ from senteval.sick import SICKEval
 
 import torch
 
-def _norm(x, eps=1e-8): 
+# ====================================
+# ===== Attention-Driven Dropout =====
+# ====================================
+def normalize(x, eps=1e-8): 
     xnorm = torch.linalg.norm(x, dim=-1)
     xnorm = torch.max(xnorm, torch.ones_like(xnorm) * eps)
     return x / xnorm.unsqueeze(dim=-1)
 
-# from Wang and Isola (with a bit of modification)
-def _lalign(x, y, ok, alpha=2):
-    return ((_norm(x) - _norm(y)).norm(dim=1).pow(alpha) * ok).sum() / ok.sum()
+# Alignment and Uniformity calculation from Wang and Isola (2019)
+def alignment(x: torch.Tensor, y: torch.Tensor, mask: torch.Tensor, alpha: int=2):
+    return ((normalize(x) - normalize(y)).norm(dim=1).pow(alpha) * mask).sum() / mask.sum()
 
-def _lunif(x, t=2):
-    sq_pdist = torch.pdist(_norm(x), p=2).pow(2)
+def uniformity(x: torch.Tensor, t: int=2):
+    sq_pdist = torch.pdist(normalize(x), p=2).pow(2)
     return sq_pdist.mul(-t).exp().mean().log()
 
-def log_alignment_and_uniformity(enc1, enc2, gs_scores, dataset):
-    # only consider pairs with gs > 4 (from footnote 3)
-    ok = (torch.Tensor(gs_scores) > 4).int()
-    align = _lalign(torch.cat(enc1), torch.cat(enc2), ok).item() 
+def log_alignment_and_uniformity(
+        enc1: list[torch.Tensor], 
+        enc2: list[torch.Tensor], 
+        gs_scores: list[float], 
+        dataset: str
+    ) -> None:
+    # Calculation only over pairs with gs > 4
+    mask = (torch.Tensor(gs_scores) > 4).int()
+    align = alignment(torch.cat(enc1), torch.cat(enc2), mask).item() 
 
-    # consider all sentences (from footnote 3)
-    unif = _lunif(torch.cat(enc1 + enc2)).item()
-    logging.debug(f'{dataset}: align {align}\t\t uniform {unif}')
+    # Calculation over all sentences
+    unif = uniformity(torch.cat(enc1 + enc2)).item()
+    logging.debug(f'{dataset}: alignment {align:.4f}\t\t uniformity {unif:.4f}')
 
 class STSEval(object):
     def loadFile(self, fpath):
@@ -83,8 +91,8 @@ class STSEval(object):
         results = {}
         all_sys_scores = []
         all_gs_scores = []
-        overall_enc1 = []
-        overall_enc2 = []
+        overall_enc1 = [] # ADD
+        overall_enc2 = [] # ADD
         for dataset in self.datasets:
             sys_scores = []
             input1, input2, gs_scores = self.data[dataset]
@@ -106,6 +114,9 @@ class STSEval(object):
                         sys_score = self.similarity(enc1[kk], enc2[kk])
                         sys_scores.append(sys_score)
 
+            # ====================================
+            # ===== Attention-Driven Dropout =====
+            # ====================================
             overall_enc1.extend(all_enc1)
             overall_enc2.extend(all_enc2)
             log_alignment_and_uniformity(
@@ -124,6 +135,9 @@ class STSEval(object):
                           (dataset, results[dataset]['pearson'][0],
                            results[dataset]['spearman'][0]))
         
+        # ====================================
+        # ===== Attention-Driven Dropout =====
+        # ====================================
         log_alignment_and_uniformity(
             enc1=overall_enc1, 
             enc2=overall_enc2, 
