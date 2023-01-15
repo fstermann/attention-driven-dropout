@@ -1,8 +1,9 @@
 # Attention-Driven Dropout
 
 [![MIT license](https://img.shields.io/badge/License-MIT-20B2AA.svg)](https://github.com/git/git-scm.com/blob/main/MIT-LICENSE.txt)
-[![transformer](https://img.shields.io/badge/transformers-4.25.1-008000)](https://github.com/huggingface/transformers)
-[![torch](https://img.shields.io/badge/pyTorch-1.13.1-008000)](https://github.com/pytorch/pytorch)
+[![python](https://img.shields.io/badge/python-3.8-306998)](https://www.python.org/)
+[![transformers](https://img.shields.io/badge/transformers-4.25.1-008000)](https://github.com/huggingface/transformers)
+[![pyTorch](https://img.shields.io/badge/pyTorch-1.13.1-008000)](https://github.com/pytorch/pytorch)
 [![SimCSE](https://img.shields.io/badge/Princeton_NLP-SimCSE-ADFF2F)](https://github.com/princeton-nlp/SimCSE)
 
 ![Attention-driven Dropout](figures/AttentionDropout-Model.png)
@@ -11,7 +12,9 @@
 
 This repository contains code for the Attention-Driven Dropout paper. 
 
-Since the ADD layer is used in combination with [SimCSE](https://github.com/princeton-nlp/SimCSE), we are using parts of the SimCSE codebase.
+### Disclaimer
+
+Since the **ADD** layer is used in combination with [SimCSE](https://github.com/princeton-nlp/SimCSE), we are using parts of the SimCSE codebase.
 Unique contributions are contained in [attention_dropout.py](attention_dropout.py), as well as [simcse/models.py](simcse/models.py) and [train.py](train.py) which are marked by 
 
 ```python
@@ -70,14 +73,11 @@ python train.py \
     --num_train_epochs 1 \
     --per_device_train_batch_size 32 \
     --learning_rate 1e-5 \
-    --max_seq_length 32 \
     --evaluation_strategy steps \
     --metric_for_best_model stsb_spearman \
     --load_best_model_at_end \
     --eval_steps 125 \
-    --pooler_type cls \
     --mlp_only_train \
-    --temp 0.05 \
     --do_train \
     --do_eval \
     --fp16 \
@@ -95,15 +95,20 @@ srun python simcse_to_huggingface.py --path ./result/<your-model-name>
 
 Evaluation on STS-Tasks
 ```bash
-python evaluation.py --pooler cls_before_pooler --mode test --task_set sts \
+python evaluation.py --pooler cls_before_pooler --task_set sts \
     --model_name_or_path ./result/<your-model-name>
 ```
 
 or include the Transfer-Tasks as well
 ```bash
-python evaluation.py --pooler cls_before_pooler --mode test --task_set full \
+python evaluation.py --pooler cls_before_pooler --task_set full \
     --model_name_or_path ./result/<your-model-name>
 ```
+
+### Examples
+
+Example sentence augmentations can be found in [notebooks/examples.ipynb](notebooks/examples.ipynb).
+
 
 ## Results
 
