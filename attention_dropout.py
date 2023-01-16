@@ -12,21 +12,23 @@ from transformers.models.roberta.modeling_roberta import RobertaModel
 
 
 class AttentionDropout(nn.Module):
-    """Attention Dropout for input ids.
+    """Attention-Driven Dropout for tokenized input ids in self-contrastive learning.
 
-    This layer is used to drop tokens from the input ids, based on their summed attention.
+    This layer is used to drop tokens from the input ids, based on their
+    aggregated attention scores.
 
     Peusdo-code:
 
     1. Pass input_ids through the specified model to get attention scores
-    2. Sum up the attention scores for each token, each batch (over the layers and heads)
-            - Attention scores are of shape (num_layers, batch_size, num_heads, seq_len, seq_len)
-            - We are summing up over the first, third and fourth dimension
-    3. If dynamic_dropout is True:
-            - Pick top k tokenswith the lowest summed attention scores,
-            with k depending on the number of input tokens (<10 -> k=1, <20 -> k=2, <30 -> k=3, ...)
-    3. If dynamic_dropout is False:
-            - Pick top 'n_dropout' (1, 2, 3, ...) tokens with the lowest summed attention scores
+    2. - If aggregation_method is "naive":
+                - Sum up the attention scores for each token, each batch (over the layers and heads)
+            - If aggregation_method is "rollout":
+                - Use the Attention Rollout method to aggregate the attention scores
+    3. - If dynamic_dropout is True:
+                - Pick top k tokenswith the lowest summed attention scores,
+                with k depending on the number of input tokens (<10 -> k=1, <20 -> k=2, <30 -> k=3, ...)
+            - If dynamic_dropout is False:
+                - Pick top 'n_dropout' (1, 2, 3, ...) tokens with the lowest summed attention scores
     4. Remove the picked tokens from the input_ids
             - Only if there are at least (>=) 'min_tokens' tokens in the input_ids
             - Actually the input is altered in a way such that tokens are shifted to the left and padded with 0s
@@ -44,11 +46,9 @@ class AttentionDropout(nn.Module):
             able to drop tokens. Defaults to 10.
         dynamic_dropout (bool, optional): If True, the number of tokens to drop is calculated
             dynamically from the sequence length (seq_length // min_tokens). Defaults to False.
-        summation (str, optional): The method to use to sum up the attention scores. Defaults to "naive".
+        summation_method (str, optional): The method to use to aggregate the attention scores. Defaults to "naive".
             - "naive": Sum up the attention scores for each token, each batch (over the layers and heads)
-            - "flow": Use the Attention Flow method to sum up the attention scores
-            - "rollout": Use the Attention Rollout method to sum up the attention scores
-
+            - "rollout": Use the Attention Rollout method to aggregate the attention scores
     """
 
     def __init__(
@@ -66,19 +66,18 @@ class AttentionDropout(nn.Module):
         self.dynamic_dropout = dynamic_dropout
 
         self.model = self.get_model(model)
-        logging.debug(f"[ADD] model: {self.model.base_model_prefix}")
+        logging.info(f"[ADD] model: {self.model.base_model_prefix}")
 
         self.padding_token = self.get_padding_token(model)
-        logging.debug(f"[ADD] padding_token: {self.padding_token}")
+        logging.info(f"[ADD] padding_token: {self.padding_token}")
 
-        self.summation_method = summation_method
-        self.summation_func = self.get_summation_func(summation_method)
-        logging.debug(f"[ADD] summation_method: {self.summation_method}")
-        logging.debug(f"[ADD] summation_func: {self.summation_func}")
+        self.aggregation_method = summation_method
+        self.aggregation_func = self.get_aggregation_func(summation_method)
+        logging.info(f"[ADD] aggregation_method: {self.aggregation_method}")
+        logging.info(f"[ADD] aggregation_func: {self.aggregation_func}")
 
-    def get_model(
-        self, model: str | BertModel | RobertaModel
-    ) -> BertModel | RobertaModel:
+    @staticmethod
+    def get_model(model: str | BertModel | RobertaModel) -> BertModel | RobertaModel:
         if not isinstance(model, str):
             return model
         if model == "bert-base-uncased":
@@ -87,28 +86,34 @@ class AttentionDropout(nn.Module):
             return RobertaModel.from_pretrained(model)
         raise ValueError(f"Model {model} is not supported.")
 
-    def get_padding_token(self, model: BertModel | RobertaModel) -> int:
+    @staticmethod
+    def get_padding_token(model: BertModel | RobertaModel) -> int:
+        # Using BERT tokenizer
         if model.base_model_prefix == "bert":
-            # Using BERT tokenizer
             return 0
+        # Using RoBERTa tokenizer
         if model.base_model_prefix == "roberta":
-            # Using RoBERTa tokenizer
             return 1
         raise ValueError(f"Model {model.base_model_prefix} is not supported.")
 
-    def get_summation_func(self, summation_method: str) -> Callable:
-        SUMMATION_CHOICES = {
-            "naive": self._sum_attentions_naive,
-            "flow": self._sum_attentions_flow,
-            "rollout": self._sum_attentions_rollout,
+    def get_aggregation_func(self, aggregation_method: str) -> Callable:
+        AGGREGATION_CHOICES = {
+            "naive": self.aggregate_attentions_naive,
+            "rollout": self.aggregate_attentions_rollout,
         }
-        if summation_method not in SUMMATION_CHOICES:
-            raise ValueError(f"Summation method {summation_method} is not supported.")
+        if aggregation_method not in AGGREGATION_CHOICES:
+            raise ValueError(
+                f"Aggregation method {aggregation_method} is not supported."
+            )
 
-        return SUMMATION_CHOICES[summation_method]
+        return AGGREGATION_CHOICES[aggregation_method]
 
     def forward(
-        self, input_ids: torch.Tensor, return_scores: bool = False, num_sent: int = 2
+        self,
+        input_ids: torch.Tensor,
+        return_scores: bool = False,
+        num_sent: int = 2,
+        last_layer_only: bool = False,
     ) -> torch.Tensor:
         """Forward pass.
 
@@ -117,6 +122,8 @@ class AttentionDropout(nn.Module):
             return_scores (bool, optional): If True, the summed attention scores are returned.
                 Defaults to False.
             num_sent (int, optional): The number of sentences per input pair. Defaults to 2.
+            last_layer_only (bool, optional): If True, only the last attention layer is used in
+                the aggregation of the attention scores. Defaults to False.
 
         Returns:
             torch.Tensor: The input ids with dropped tokens. Shape: (batch_size * num_sent, seq_length)
@@ -142,7 +149,9 @@ class AttentionDropout(nn.Module):
         )
 
         # Sum over layers, heads and sequence length
-        attention_sums = self.summation_func(attentions)
+        attention_sums = self.aggregation_func(
+            attentions, last_layer_only=last_layer_only
+        )
 
         min_indices = attention_sums.topk(n_dropout, dim=1, largest=False).indices
 
@@ -181,6 +190,7 @@ class AttentionDropout(nn.Module):
             return input_ids.detach(), attention_sums
         return input_ids.detach()
 
+    @staticmethod
     def get_last_of_input_ids(
         input_ids: torch.Tensor, num_sent: int = 2
     ) -> torch.Tensor:
@@ -207,17 +217,26 @@ class AttentionDropout(nn.Module):
         split_input_ids = input_ids.reshape(split_shape).clone()
         return split_input_ids[:, num_sent - 1]
 
-    def _sum_attentions_naive(
-        self, attentions: torch.Tensor, dim: tuple[int, ...] = (0, 2, 3)
+    @staticmethod
+    def aggregate_attentions_naive(
+        attentions: torch.Tensor,
+        dim: tuple[int, ...] = (0, 2, 3),
+        last_layer_only: bool = False,
     ) -> torch.Tensor:
         """Compute the summed attention scores for each token in the sequence.
 
         Args:
             attentions (torch.Tensor): The attention scores of shape (n_layers, batch_size, num_heads, seq_len, seq_len)
+            dim (tuple[int, ...], optional): The dimensions to sum over. Defaults to (0, 2, 3).
+            last_layer_only (bool, optional): If True, only the last attention layer is used in
+                the aggregation of the attention scores. Defaults to False.
 
         Returns:
             torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
         """
+        if last_layer_only:
+            attentions = attentions[-1].unsqueeze(0)
+
         output = torch.sum(attentions, dim=dim)
 
         # Replace masked attentions with Inf, to exclude them from the min
@@ -225,16 +244,19 @@ class AttentionDropout(nn.Module):
         output[mask] = float("inf")
         return output
 
-    def _sum_attentions_rollout(
-        self,
+    @staticmethod
+    def aggregate_attentions_rollout(
         attentions: torch.Tensor,
         dim: tuple[int, ...] = (0, 2),
-        take_last_layer: bool = False,
+        last_layer_only: bool = False,
     ) -> torch.Tensor:
         """Compute the summed attention scores for each token in the sequence with the Attention Rollout method.
 
         Args:
             attentions (torch.Tensor): The attention scores of shape (n_layers, batch_size, num_heads, seq_len, seq_len)
+            dim (tuple[int, ...], optional): The dimensions to sum over. Defaults to (0, 2).
+            last_layer_only (bool, optional): If True, only the last attention layer is used in
+                the aggregation of the attention scores. Defaults to False.
 
         Returns:
             torch.Tensor: The summed attention scores of shape (batch_size, seq_len)
@@ -244,10 +266,10 @@ class AttentionDropout(nn.Module):
             residual_attentions, add_residual=False
         )
 
-        if take_last_layer:
+        if last_layer_only:
             rollout_attentions = rollout_attentions[-1].unsqueeze(0)
 
-        output = rollout_attentions.sum(dim == dim)
+        output = rollout_attentions.sum(dim=dim)
 
         # Replace masked attentions with Inf, to exclude them from the min
         mask = attentions[0, :, 1, 1] == 0
@@ -320,56 +342,50 @@ class RandomDropout(nn.Module):
 # ==========================================
 
 
-def get_residual_attentions(raw_attentions: torch.Tensor, head_dim: int = 2):
-    # TODO: What does [None, ...] do?
-    res_att_mat = raw_attentions.sum(axis=head_dim) / raw_attentions.shape[head_dim]
-    res_att_mat = (
-        res_att_mat
-        + torch.eye(res_att_mat.shape[head_dim], device=raw_attentions.device)[
-            None, ...
-        ]
-    )
-    res_att_mat = res_att_mat / res_att_mat.sum(axis=-1)[..., None]
+def get_residual_attentions(attentions: torch.Tensor, head_dim: int = 2):
+    """Compute the residual attention matrices from the attention matrices of each layer.
 
-    return res_att_mat
+    Args:
+        attentions (torch.Tensor): The attention matrices of each layer.
+            Shape: (n_layers, batch_size, n_heads, seq_len, seq_len)
+        head_dim (int, optional): The dimension of the heads. Defaults to 2.
 
+    Returns:
+        torch.Tensor: The residual attention matrices of each layer.
+            Shape: (n_layers, batch_size, seq_len, seq_len)
+    """
+    n_heads = attentions.shape[head_dim]
 
-def get_adjmat(mat, input_tokens):
-    n_layers, length, _ = mat.shape
-    adj_mat = torch.zeros(
-        ((n_layers + 1) * length, (n_layers + 1) * length), device=mat.device
-    )
-    labels_to_index = {}
-    for k in np.arange(length):
-        labels_to_index[str(k) + "_" + input_tokens[k]] = k
-
-    for i in np.arange(1, n_layers + 1):
-        for k_f in np.arange(length):
-            index_from = (i) * length + k_f
-            label = "L" + str(i) + "_" + str(k_f)
-            labels_to_index[label] = index_from
-            for k_t in np.arange(length):
-                index_to = (i - 1) * length + k_t
-                adj_mat[index_from][index_to] = mat[i - 1][k_f][k_t]
-
-    return adj_mat, labels_to_index
+    attention_residuals = attentions.sum(axis=head_dim) / n_heads
+    attention_residuals += torch.eye(
+        attention_residuals.shape[head_dim], device=attentions.device
+    )[None, ...]
+    return attention_residuals / attention_residuals.sum(axis=-1)[..., None]
 
 
-def compute_rollout_attention(att_mat, add_residual=True):
+def compute_rollout_attention(attentions: torch.Tensor, add_residual: bool = False):
+    """Compute the joint attention matrix from the attention matrices of each layer.
+
+    Args:
+        attentions (torch.Tensor): The attention matrices of each layer.
+            Shape: (n_layers, batch_size, (n_heads), seq_len, seq_len)
+        add_residual (bool, optional): Whether to add a residuals.
+            Defaults to False.
+
+    Returns:
+        torch.Tensor: The joint attention matrix.
+            Shape: (n_layers, batch_size, seq_len, seq_len)
+    """
     if add_residual:
-        residual_att = torch.eye(att_mat.shape[1])[None, ...]
-        aug_att_mat = att_mat + residual_att
-        aug_att_mat = aug_att_mat / aug_att_mat.sum(axis=-1)[..., None]
-    else:
-        aug_att_mat = att_mat
+        attention_residuals = torch.eye(attentions.shape[1])[None, ...]
+        attentions += attention_residuals
+        attentions /= attentions.sum(-1)[..., None]
 
-    joint_attentions = torch.zeros(aug_att_mat.shape, device=aug_att_mat.device)
+    joint_attentions = torch.zeros(attentions.shape, device=attentions.device)
 
     layers = joint_attentions.shape[0]
-    joint_attentions[0] = aug_att_mat[0]
+    joint_attentions[0] = attentions[0]
     for i in np.arange(1, layers):
-        # joint_attentions[i] = aug_att_mat[i].dot(joint_attentions[i-1]).reshape((joint_attentions[i].shape))
-        # joint_attentions[i] = torch.einsum('ijk,ijk->ij', aug_att_mat[i], joint_attentions[i-1]).unsqueeze(-1)
-        joint_attentions[i] = aug_att_mat[i].matmul(joint_attentions[i - 1])
+        joint_attentions[i] = attentions[i].matmul(joint_attentions[i - 1])
 
     return joint_attentions
