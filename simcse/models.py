@@ -19,7 +19,7 @@ from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOut
 # ====================================
 # ===== Attention-Driven Dropout =====
 # ====================================
-from attention_dropout import AttentionDropout, RandomDropout
+from attention_dropout import AttentionDropout
 
 
 class MLPLayer(nn.Module):
