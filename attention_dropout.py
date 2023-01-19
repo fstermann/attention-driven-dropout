@@ -277,66 +277,6 @@ class AttentionDropout(nn.Module):
         return output
 
 
-class RandomDropout(nn.Module):
-    def __init__(
-        self, n_dropout: int = 1, min_tokens: int = 10, dynamic_dropout: bool = False
-    ) -> None:
-        super().__init__()
-        self.n_dropout = n_dropout
-        self.min_tokens = min_tokens
-        self.dynamic_dropout = dynamic_dropout
-
-    def forward(self, input_ids: torch.Tensor) -> torch.Tensor:
-        if not self.training:
-            return input_ids
-
-        batch_size = input_ids.shape[0]
-        padding_token = self.get_padding_token(input_ids)
-
-        input_ids = input_ids.clone()
-        for i in range(1, batch_size, 2):
-            sequence = input_ids[i].clone()
-            n_tokens = len(sequence[sequence > padding_token])
-            n_dropout = (
-                n_tokens // self.min_tokens if self.dynamic_dropout else self.n_dropout
-            )
-
-            # Generate random sample of indices of length n_dropout
-            ind = torch.randperm(n_tokens, device=input_ids.device)[:n_dropout]
-
-            if self.dynamic_dropout:
-                ind = ind[:n_dropout]
-
-                if len(ind) == 0:
-                    continue
-            else:
-                # Only replace words if there are more than min_tokens words in the sequence
-                if n_tokens < self.min_tokens:
-                    continue
-
-            sequence[ind] = padding_token
-            sequence_tokens = sequence[
-                sequence != padding_token
-            ]  # Without padding tokens
-
-            # Shift tokens to the left
-            ind = torch.arange(0, len(sequence_tokens), device=input_ids.device)
-            result = torch.full(sequence.shape, padding_token, device=input_ids.device)
-            input_ids[i] = result.scatter(0, ind, sequence_tokens)
-
-        return input_ids.detach()
-
-    def get_padding_token(self, input_ids) -> int:
-        if input_ids[0][0] == 0:
-            # We are using BERT tokenizer
-            return 0
-        if input_ids[0][0] == 1:
-            # We are using RoBERTa tokenizer
-            return 1
-
-        raise ValueError(f"Unkown padding token for input_ids: {input_ids[0][0]}")
-
-
 # ==========================================
 # ==== ATTENTION FLOW/ROLLOUT FUNCTIONS ====
 # ==========================================
