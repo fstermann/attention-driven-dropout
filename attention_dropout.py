@@ -282,7 +282,9 @@ class AttentionDropout(nn.Module):
 # ==========================================
 
 
-def get_residual_attentions(attentions: torch.Tensor, head_dim: int = 2):
+def get_residual_attentions(
+    attentions: torch.Tensor, head_dim: int = 2
+) -> torch.Tensor:
     """Compute the residual attention matrices from the attention matrices of each layer.
 
     Args:
@@ -303,7 +305,9 @@ def get_residual_attentions(attentions: torch.Tensor, head_dim: int = 2):
     return attention_residuals / attention_residuals.sum(axis=-1)[..., None]
 
 
-def compute_rollout_attention(attentions: torch.Tensor, add_residual: bool = False):
+def compute_rollout_attention(
+    attentions: torch.Tensor, add_residual: bool = False
+) -> torch.Tensor:
     """Compute the joint attention matrix from the attention matrices of each layer.
 
     Args:
