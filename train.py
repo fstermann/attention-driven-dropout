@@ -137,12 +137,6 @@ class ModelArguments:
             "help": "Use attention dropout to remove certain words in one of the sentence pairs."
         }
     )
-    use_random_dropout: bool = field(
-        default=False,
-        metadata={
-            "help": "Use random dropout to remove certain words in one of the sentence pairs."
-        }
-    )
     use_raw_model: bool = field(
         default=False,
         metadata={
@@ -161,10 +155,10 @@ class ModelArguments:
             "help": "Minimum text length for dropout. If text length is less than this, do not drop out any words."
         }
     )
-    dynamic_dropout: bool = field(
-        default=False,
+    dropout_rate: str = field(
+        default="static",
         metadata={
-            "help": "Use text length to figure out the number of words to drop. If False, use fixed n_dropout."
+            "help": "Dropout rate for attention dropout. Defaults to 'static'. Choices: (static, dynamic)"
         }
     )
     summation_method: str = field(

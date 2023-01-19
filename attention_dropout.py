@@ -24,10 +24,11 @@ class AttentionDropout(nn.Module):
                 - Sum up the attention scores for each token, each batch (over the layers and heads)
             - If aggregation_method is "rollout":
                 - Use the Attention Rollout method to aggregate the attention scores
-    3. - If dynamic_dropout is True:
-                - Pick top k tokenswith the lowest summed attention scores,
-                with k depending on the number of input tokens (<10 -> k=1, <20 -> k=2, <30 -> k=3, ...)
-            - If dynamic_dropout is False:
+    3. - If dropout_rate is "dynamic":
+                - Pick top k tokens with the lowest summed attention scores,
+                with k depending on the number of input tokens, e.g. for min_tokens = 10:
+                    (<10 -> k=1, <20 -> k=2, <30 -> k=3, ...)
+            - If dropout_rate is "static":
                 - Pick top 'n_dropout' (1, 2, 3, ...) tokens with the lowest summed attention scores
     4. Remove the picked tokens from the input_ids
             - Only if there are at least (>=) 'min_tokens' tokens in the input_ids
@@ -44,8 +45,9 @@ class AttentionDropout(nn.Module):
         n_dropout (int, optional): The number of tokens to drop. Defaults to 1.
         min_tokens (int, optional): The minimum number of tokens present in a sequence to be
             able to drop tokens. Defaults to 10.
-        dynamic_dropout (bool, optional): If True, the number of tokens to drop is calculated
-            dynamically from the sequence length (seq_length // min_tokens). Defaults to False.
+        dropout_rate (str, optional): Dropout rate mode to figure our the number of tokens to drop. Defaults to "static".
+            - "static": Drop 'n_dropout' tokens
+            - "dynamic": Drop tokens based on the number of tokens in the sequence
         summation_method (str, optional): The method to use to aggregate the attention scores. Defaults to "naive".
             - "naive": Sum up the attention scores for each token, each batch (over the layers and heads)
             - "rollout": Use the Attention Rollout method to aggregate the attention scores
@@ -57,13 +59,15 @@ class AttentionDropout(nn.Module):
         *,
         n_dropout: int = 1,
         min_tokens: int = 10,
-        dynamic_dropout: bool = False,
+        dropout_rate: str = "static",
         summation_method: str = "naive",
     ):
         super().__init__()
         self.n_dropout = n_dropout
         self.min_tokens = min_tokens
-        self.dynamic_dropout = dynamic_dropout
+        if dropout_rate not in ["static", "dynamic"]:
+            raise ValueError(f"Dropout rate {dropout_rate} is not supported.")
+        self.dropout_rate = dropout_rate
 
         self.model = self.get_model(model)
         logging.info(f"[ADD] model: {self.model.base_model_prefix}")
@@ -144,9 +148,12 @@ class AttentionDropout(nn.Module):
         _, batch_size, _, _, seq_length = attentions.shape
 
         # Determine dropout rate
-        n_dropout = (
-            seq_length // self.min_tokens if self.dynamic_dropout else self.n_dropout
-        )
+        if self.dropout_rate == "static":
+            n_dropout = self.n_dropout
+        elif self.dropout_rate == "dynamic":
+            n_dropout = seq_length // self.min_tokens
+        else:
+            raise ValueError(f"Dropout rate {self.dropout_rate} is not supported.")
 
         # Sum over layers, heads and sequence length
         attention_sums = self.aggregation_func(
@@ -164,15 +171,15 @@ class AttentionDropout(nn.Module):
             n_tokens = len(sequence[sequence != self.padding_token])
             ind = min_indices[i]
 
-            if self.dynamic_dropout:
+            if self.dropout_rate == "static":
+                # Only replace words if there are more than min_tokens words in the sequence
+                if n_tokens < self.min_tokens:
+                    continue
+            elif self.dropout_rate == "dynamic":
                 n_dropout = n_tokens // self.min_tokens
                 ind = ind[:n_dropout]
 
                 if len(ind) == 0:
-                    continue
-            else:
-                # Only replace words if there are more than min_tokens words in the sequence
-                if n_tokens < self.min_tokens:
                     continue
 
             sequence[ind] = self.padding_token

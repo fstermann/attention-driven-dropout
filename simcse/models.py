@@ -134,8 +134,6 @@ def cl_forward(cls,
     # ====================================
     if cls.model_args.use_attention_dropout == True:
         input_ids = cls.attention_dropout(input_ids)
-    elif cls.model_args.use_random_dropout == True:
-        input_ids = cls.random_dropout(input_ids)
 
     # Get raw embeddings
     outputs = encoder(
@@ -281,14 +279,8 @@ class BertForCL(BertPreTrainedModel):
                 model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.bert, 
                 n_dropout=self.model_args.n_dropout,
                 min_tokens=self.model_args.min_tokens,
-                dynamic_dropout=self.model_args.dynamic_dropout,
+                dropout_rate=self.model_args.dropout_rate,
                 summation_method=self.model_args.summation_method,
-            )
-        elif self.model_args.use_random_dropout == True:
-            self.random_dropout = RandomDropout(
-                n_dropout=self.model_args.n_dropout,
-                min_tokens=self.model_args.min_tokens,
-                dynamic_dropout=self.model_args.dynamic_dropout,
             )
 
         cl_init(self, config)
@@ -358,13 +350,8 @@ class RobertaForCL(RobertaPreTrainedModel):
                 model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.roberta, 
                 n_dropout=self.model_args.n_dropout,
                 min_tokens=self.model_args.min_tokens,
-                dynamic_dropout=self.model_args.dynamic_dropout,
+                dropout_rate=self.model_args.dropout_rate,
                 summation_method=self.model_args.summation_method,
-            )
-        elif self.model_args.use_random_dropout == True:
-            self.random_dropout = RandomDropout(
-                n_dropout=self.model_args.n_dropout,
-                min_tokens=self.model_args.min_tokens,
             )
 
         cl_init(self, config)
