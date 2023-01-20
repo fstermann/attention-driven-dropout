@@ -15,7 +15,7 @@ This repository contains code for the Attention-Driven Dropout paper.
 ### Disclaimer
 
 Since the **ADD** layer is used in combination with [SimCSE](https://github.com/princeton-nlp/SimCSE), we are using parts of the SimCSE codebase.
-Unique contributions are contained in [attention_dropout.py](attention_dropout.py), as well as [simcse/models.py](simcse/models.py) and [train.py](train.py) which are marked by 
+Unique contributions are contained in [attention_driven_dropout.py](attention_driven_dropout.py), as well as [simcse/models.py](simcse/models.py) and [train.py](train.py) which are marked by 
 
 ```python
 # ====================================

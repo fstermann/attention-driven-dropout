@@ -11,7 +11,7 @@ from transformers.models.bert.modeling_bert import BertModel
 from transformers.models.roberta.modeling_roberta import RobertaModel
 
 
-class AttentionDropout(nn.Module):
+class AttentionDrivenDropout(nn.Module):
     """Attention-Driven Dropout for tokenized input ids in self-contrastive learning.
 
     This layer is used to drop tokens from the input ids, based on their

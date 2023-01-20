@@ -19,7 +19,7 @@ from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOut
 # ====================================
 # ===== Attention-Driven Dropout =====
 # ====================================
-from attention_dropout import AttentionDropout
+from attention_driven_dropout import AttentionDrivenDropout
 
 
 class MLPLayer(nn.Module):
@@ -133,7 +133,7 @@ def cl_forward(cls,
     # ===== Attention-Driven Dropout =====
     # ====================================
     if cls.model_args.use_attention_dropout == True:
-        input_ids = cls.attention_dropout(input_ids)
+        input_ids = cls.attention_driven_dropout(input_ids)
 
     # Get raw embeddings
     outputs = encoder(
@@ -275,7 +275,7 @@ class BertForCL(BertPreTrainedModel):
         # ===== Attention-Driven Dropout =====
         # ====================================
         if self.model_args.use_attention_dropout == True:
-            self.attention_dropout = AttentionDropout(
+            self.attention_driven_dropout = AttentionDrivenDropout(
                 model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.bert, 
                 n_dropout=self.model_args.n_dropout,
                 min_tokens=self.model_args.min_tokens,
@@ -346,7 +346,7 @@ class RobertaForCL(RobertaPreTrainedModel):
         # ===== Attention-Driven Dropout =====
         # ====================================
         if self.model_args.use_attention_dropout == True:
-            self.attention_dropout = AttentionDropout(
+            self.attention_driven_dropout = AttentionDrivenDropout(
                 model=self.model_args.model_name_or_path if self.model_args.use_raw_model else self.roberta, 
                 n_dropout=self.model_args.n_dropout,
                 min_tokens=self.model_args.min_tokens,
