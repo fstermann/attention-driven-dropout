@@ -134,7 +134,7 @@ class ModelArguments:
     use_attention_dropout: bool = field(
         default=False,
         metadata={
-            "help": "Use attention dropout to remove certain words in one of the sentence pairs."
+            "help": "Use attention-driven dropout to remove certain words in one of the sentence pairs."
         }
     )
     use_raw_model: bool = field(
@@ -158,7 +158,7 @@ class ModelArguments:
     dropout_rate: str = field(
         default="static",
         metadata={
-            "help": "Dropout rate for attention dropout. Defaults to 'static'. Choices: (static, dynamic)"
+            "help": "Dropout rate for attention-driven dropout. Defaults to 'static'. Choices: (static, dynamic)"
         }
     )
     summation_method: str = field(
