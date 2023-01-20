@@ -42,10 +42,15 @@ We added the alignment and uniformity metric calculation in [SentEval/senteval/s
 
 ## Installation
 
+Python version used: 3.8.15
+
+Requirements with their pinned versions can be found in [requirements.txt](requirements.txt).
+
 ```bash
 pip install -r requirements.txt
 pip install -e ./SentEval
 ```
+
 ## Usage/Examples
 
 ### Download datasets
@@ -128,7 +133,7 @@ You can customize your runs by passing these arguments to the train script
 ```bash
 --wandb_run_name=<your-run-name> \
 --wandb_project=<your-project-name> \
---wandb_tags="ado,bert,<additional tags>" \
+--wandb_tags="add,bert,<additional tags>" \
 ```
 
 ## Acknowledgements
