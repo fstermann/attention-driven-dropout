@@ -1,4 +1,4 @@
-# Attention-Driven Dropout
+# Attention-Driven Dropout (ADD)
 
 [![MIT license](https://img.shields.io/badge/License-MIT-20B2AA.svg)](https://github.com/git/git-scm.com/blob/main/MIT-LICENSE.txt)
 [![python](https://img.shields.io/badge/python-3.8-306998)](https://www.python.org/)
@@ -6,7 +6,7 @@
 [![pyTorch](https://img.shields.io/badge/pyTorch-1.13.1-008000)](https://github.com/pytorch/pytorch)
 [![SimCSE](https://img.shields.io/badge/Princeton_NLP-SimCSE-ADFF2F)](https://github.com/princeton-nlp/SimCSE)
 
-![Attention-driven Dropout](figures/ADD-Layer.png)
+![Attention-driven Dropout](figures/ADD-Merged.png)
 
 #
 
