@@ -16,8 +16,8 @@
 | ^ InfoCSE-BERT + ADD rollout | 81.81     | 87.00     | 95.19     | 88.67     | **87.15** | 90.00     | 78.03     | 86.84     |
 |                              |           |           |           |           |           |           |           |           |
 | DiffCSE-BERT                 | 82.69     | 87.23     | 95.23     | 89.28     | 86.60     | 90.40     | 76.58     | 86.86     |
-| ^ DiffCSE-BERT + ADD naive   |           |           |           |           |           |           |           |           |
-| ^ DiffCSE-BERT + ADD rollout |           |           |           |           |           |           |           |           |
+| ^ DiffCSE-BERT + ADD naive   | 80.71     | 84.90     | 94.48     | 88.65     | 85.34     | 87.00     | 75.94     | 85.29     |
+| ^ DiffCSE-BERT + ADD rollout | 82.28     | 86.76     | 95.06     | 88.96     | 86.60     | 89.80     | 77.22     | 86.67     |
 
 ^: Results evaluated by us
 
@@ -33,8 +33,8 @@
 | ^ + MLM                         | **84.68** | **89.91** | 94.97     | **88.37** | **90.61** | **92.20** | **78.43** | **88.45** |
 |                                 |           |           |           |           |           |           |           |           |
 | DiffCSE-RoBERTa                 | 82.82     | 88.61     | 94.32     | 87.71     | 88.63     | 90.40     | 76.81     | 87.04     |
-| ^ DiffCSE-RoBERTa + ADD naive   |           |           |           |           |           |           |           |           |
-| ^ DiffCSE-RoBERTa + ADD rollout |           |           |           |           |           |           |           |           |
+| ^ DiffCSE-RoBERTa + ADD naive   | 82.85     | 88.13     | 94.00     | 87.91     | 88.69     | 90.40     | 77.16     | 87.02     |
+| ^ DiffCSE-RoBERTa + ADD rollout | 81.89     | 87.31     | 93.64     | 87.10     | 88.74     | 91.20     | 76.35     | 86.60     |
 
 ^: Results evaluated by us
 
