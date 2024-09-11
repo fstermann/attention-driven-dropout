@@ -14,7 +14,10 @@ This repository contains code for the Attention-Driven Dropout paper.
 
 > [!NOTE]  
 > This paper was accepted at the [ECML PKDD 2024](https://2024.ecmlpkdd.org/) conference.
+> 
 > [**The paper can be found here**](https://link.springer.com/chapter/10.1007/978-3-031-70341-6_6).
+> 
+> Slides of the talk on 11.09.2024 @ECML in Vilnius can be found [here](./figures/ADD-@-ECML-11.09.2024.pdf)
 
 
 > [!NOTE]  
